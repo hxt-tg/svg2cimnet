@@ -171,13 +171,13 @@ private:
     int precision{1};
 };
 
-std::vector<Coordinates> get_path_coordinates(const std::string &str) {
+std::vector<Coordinates> get_path_coordinates(const std::string &str, bool verbose_points = false) {
     std::vector<Coordinates> list_co;
     const char *s = str.c_str();
     char op;
     double x, y, x1, y1, x2, y2;
 
-    SVGPainter painter(11);
+    SVGPainter painter(21);
 
     while ((op = *s++)) {
         while (*s == ' ') s++;
@@ -236,14 +236,14 @@ std::vector<Coordinates> get_path_coordinates(const std::string &str) {
                 break;
         }
     }
-    std::cout << "[\n";
-    for (auto &cos : list_co) {
-        std::cout << "[\n";
-        for (auto &co : cos)
-            std::cout << "[" << co.x << ", " << co.y << "],\n";
-        std::cout << "],\n";
+    if (verbose_points) {
+        for (auto &cos : list_co) {
+            std::cout << "[\n";
+            for (auto &co : cos)
+                std::cout << "[" << co.x << ", " << co.y << "],\n";
+            std::cout << "],\n";
+        }
     }
-    std::cout << "]\n";
     return list_co;
 }
 
@@ -253,7 +253,7 @@ inline double distance(const Point &u, const Point &v) {
     return pow(x * x + y * y, 0.5);
 }
 
-void build_network_from_coordinates(SVGPathNetwork &net, const Coordinates &coordinates) {
+void build_network_from_coordinates(SVGPathNetwork &net, const Coordinates &coordinates, double connect_distance = 0) {
     size_t length = net.number_of_nodes();
     net.add_node(length, coordinates[0]);
     for (int i = 1UL; i < coordinates.size(); i++) {
@@ -262,6 +262,11 @@ void build_network_from_coordinates(SVGPathNetwork &net, const Coordinates &coor
     }
     net.add_edge(length + coordinates.size() - 1, length,
                  distance(coordinates[coordinates.size() - 1], coordinates[0]));
+    if (connect_distance > 0)
+        for (int i = 0UL; i < coordinates.size(); i++)
+            for (int j = i + 1; j < coordinates.size(); j++)
+                if (i != j && distance(coordinates[i], coordinates[j]) < connect_distance)
+                    net.add_edge(length + i, length + j);
 }
 
 SVGPathNetwork build_network_from_svg(const char *filename) {
@@ -278,7 +283,7 @@ SVGPathNetwork build_network_from_svg(const char *filename) {
 
     SVGPathNetwork net;
     while (std::regex_search(str, m, path)) {
-        std::vector<Coordinates> list_co = get_path_coordinates(m[1]);
+        std::vector<Coordinates> list_co = get_path_coordinates(m[1], true);
         for (auto &coordinates : list_co)
             build_network_from_coordinates(net, coordinates);
         str = m.suffix().str();
@@ -287,7 +292,7 @@ SVGPathNetwork build_network_from_svg(const char *filename) {
 }
 
 int main() {
-    SVGPathNetwork net = build_network_from_svg("../svg_files/CimNet.svg");
+    SVGPathNetwork net = build_network_from_svg("../svg_files/CimNet-MT-Bold.svg");
 
     std::ofstream out("../CimNet.graph");
     for (auto &n: net.nodes())
